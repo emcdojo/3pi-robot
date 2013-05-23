@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<head>
+    <title>Part 5: Use proximity sensors - Matthew Campbell</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <link rel="stylesheet" href="../static/blueprint-css/screen.css" type="text/css" media="screen, projection">
+    <link rel="stylesheet" href="../static/blueprint-css/print.css" type="text/css" media="print">
+    <!--[if lt IE 8]>
+      <link rel="stylesheet" href="../static/blueprint-css/ie.css" type="text/css" media="screen, projection">
+    <![endif]-->
+    <link href="../static/syntaxhighlighter_3.0.83/styles/shCore.css" rel="stylesheet" type="text/css">
+    <link href="../static/syntaxhighlighter_3.0.83/styles/shThemeDefault.css" rel="stylesheet" type="text/css">
+    <style>
+        body, div, span, object, iframe, h1, h2, h3, h4, h5, h6, p, blockquote, pre, a, abbr, acronym, address, code, del, dfn, em, img, q, dl, dt, dd, ol, ul, li, fieldset, form, label, legend, table, caption, tbody, tfoot, thead, tr, th, td, article, aside, dialog, figure, footer, header, hgroup, nav, section{font-size:12px;font-family:Verdana, "Helvetica Neue", Arial, Helvetica, sans-serif;}
+        body{line-height:20px;}
+        h1{font-size:30px;}
+        h2{font-size:20px;}
+        /* Fix scrollbar in Chrome */
+        .syntaxhighlighter { overflow-y: hidden !important; border:1px solid #CCC;}
+    </style>
+</head>
+<body>
+    <br>
+    <div class="container">
+        <div class="span-24">
+            <h1 style="border-bottom: 1px solid #000">Roving Autonomous Robot (Pololu 3pi Robot)</h1>
+        </div>
+        <div class="span-5">
+            <br>
+            <ul id="navigation" style="list-style:none;padding-left:0px;margin:0px;">
+                <li><a href="p1.html">Part 1: Move forward</a></li>
+                <li><a href="p2.html">Part 2: 90 Degree turn</a></li>
+                <li><a href="p3.html">Part 3: Print LCD message</a></li>
+                <li><a href="p4.html">Part 4: Make a sound</a></li>
+                <li>Part 5: Use proximity sensors</li>
+                <li><a href="p6.html">Part 6: Create and use a library</a></li>
+                <li>&nbsp;</li>
+                <li><a href="3pi-rar-completed-project.html">3pi RAR completed project</a></li>
+                
+            </ul>
+        </div>
+        <div class="span-19 last">
+            
+<br>
+<pre class="brush: c; toolbar: false; highlight: [54,55,95,99,102,103,108,109,110,111,112]">/*
+ *   Roving Autonomous Robot (ELET 3232)
+ *
+ *   Part 5: Show that the robot can sense its distance from the walls
+ *           and or other objects.
+ *
+ *       Matthew Campbell &lt;mcampb51@uncc.edu&gt; 2012-04-18
+ *
+ *       Description:
+ *
+ *       IR proximity sensors have been attached to the 3pi. This code
+ *       allows the 3pi to navigate hallways by staying in the center of
+ *       the hallway. It also causes the 3pi to turn left if it is about
+ *       to have a head-on collision.
+ *
+ *       Note: Two IR sensors with ranges of 20cm to 150cm have been placed
+ *             directly over its wheels in a crisscrossed arrangement, each
+ *             at 30 degrees. One sensor has its wires twisted and is referred
+ *             to as twisted. The other does not and is referred to as straight.
+ *
+ */
+
+#include &lt;pololu/3pi.h&gt;
+/*
+    This include file allows data to be stored in program space.  The
+    ATmegaxx8 has 16x more program space than RAM, so large
+    pieces of static data should be stored in program space.
+ */
+#include &lt;avr/pgmspace.h&gt;
+// Store a sound in program space.
+const char start_sound[] PROGMEM = &#34;reg4&#34;;
+
+/*
+        Get a percentage value for the battery life level.
+        100% is 5500mV or more and 0% is 3500mV or less.
+ */
+int rar_battery_percent() {
+    int battery_mv = read_battery_millivolts();
+    // To get the battery life as a percent we do:
+    // (current_mv - min_mv / mv_range(max-min)) * 100
+    battery_mv = 100 * (battery_mv - 3500) / (5500 - 3500);
+    // This prevents a negative percent from being returned.
+    if (battery_mv &lt; 0) {
+        battery_mv = 0;
+    }
+    return battery_mv;
+}
+
+/*
+    The entry point for execution of the program.
+ */
+int main() {
+    // Set PC5 as an analog input with internal pull-up disabled.
+    DDRC &amp;= ~(1 &lt;&lt; PORTC5);
+    PORTC &amp;= ~(1 &lt;&lt; PORTC5);
+    // These are the variables used in the main loop.
+    int twisted;
+    int straight;
+    int time;
+    int proximity_difference;
+    int proximity_sum;
+    // Display battery voltage and wait for button B to be pressed.
+    while (!button_is_pressed(BUTTON_B)) {
+        // Print the battery life to the screen.
+        clear();
+        lcd_goto_xy(2, 0);
+        print_long(rar_battery_percent());
+        // Move the cursor to the second line of the LCD	.
+        lcd_goto_xy(0, 1);
+        // Display instructions to start.
+        print(&#34;Press B&#34;);
+        // Prevent the LCD from flickering.
+        delay_ms(100);
+    }
+    // Wait for button B to be released.
+    wait_for_button_release(BUTTON_B);
+    // Play a sound
+    play_from_program_space(start_sound);
+    // Wait for two seconds to have time to clear out of the way of the robot.
+    delay_ms(2000);
+    // Print instructions to restart the program to the LCD.
+    clear();
+    print(&#34;Press&#34;);
+    lcd_goto_xy(0, 1);
+    print(&#34;Reset&#34;);
+    // Start the main execution loop.
+    while (1) {
+        time = get_ms();
+        // Print to the screen twice per second.
+        if (time % 500 == 0) {
+            clear();
+            lcd_goto_xy(0, 0);
+            print(&#34;T&#34;);
+            lcd_goto_xy(1, 0);
+            print_long(twisted);
+            lcd_goto_xy(0, 1);
+            print(&#34;S&#34;);
+            lcd_goto_xy(1, 1);
+            print_long(straight);
+        }
+        // Twisted reads the left wall and Straight reads the right wall
+        twisted = 65 - analog_read(7) / 10;
+        straight = 65 - analog_read(5) / 10;
+        proximity_difference = twisted - straight;
+        proximity_sum = twisted + straight;
+        // If the robot is about to have a head on collision start a left turn.
+        // Otherwise try to stay in the middle of the trial.
+        if (proximity_sum &lt; 70) {
+            set_motors(-120, 120);
+        } else {
+            set_motors(120 - proximity_difference, 120 + proximity_difference);
+        }
+    }
+    // The main while loop is never left once started. This part of the
+    // program is never reached.
+    return 0;
+}</pre>
+<br>
+<div style="width:640px; margin:0 auto;">
+    <iframe width="640" height="360"
+            src="http://www.youtube.com/embed/T8s0OpnG2us?rel=0"
+            frameborder="0" allowfullscreen>
+    </iframe>
+    <iframe width="640" height="360"
+            src="http://www.youtube.com/embed/w5FuHrTIsfI?rel=0"
+            frameborder="0" allowfullscreen>
+    </iframe>
+</div>
+
+<br><br>
+
+        </div>
+    </div>
+    <script src="../static/syntaxhighlighter_3.0.83/scripts/shCore.js" type="text/javascript"></script>
+    <script src="../static/syntaxhighlighter_3.0.83/scripts/shAutoloader.js" type="text/javascript"></script>
+    <script src="../static/syntaxhighlighter_3.0.83/scripts/shBrushCpp.js" type="text/javascript"></script>
+    <script type='text/javascript'>
+        SyntaxHighlighter.all();
+    </script>
+</body>
+</html>

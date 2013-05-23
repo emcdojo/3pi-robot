@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<head>
+    <title>3pi RAR completed project - Matthew Campbell</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <link rel="stylesheet" href="../static/blueprint-css/screen.css" type="text/css" media="screen, projection">
+    <link rel="stylesheet" href="../static/blueprint-css/print.css" type="text/css" media="print">
+    <!--[if lt IE 8]>
+      <link rel="stylesheet" href="../static/blueprint-css/ie.css" type="text/css" media="screen, projection">
+    <![endif]-->
+    <link href="../static/syntaxhighlighter_3.0.83/styles/shCore.css" rel="stylesheet" type="text/css">
+    <link href="../static/syntaxhighlighter_3.0.83/styles/shThemeDefault.css" rel="stylesheet" type="text/css">
+    <style>
+        body, div, span, object, iframe, h1, h2, h3, h4, h5, h6, p, blockquote, pre, a, abbr, acronym, address, code, del, dfn, em, img, q, dl, dt, dd, ol, ul, li, fieldset, form, label, legend, table, caption, tbody, tfoot, thead, tr, th, td, article, aside, dialog, figure, footer, header, hgroup, nav, section{font-size:12px;font-family:Verdana, "Helvetica Neue", Arial, Helvetica, sans-serif;}
+        body{line-height:20px;}
+        h1{font-size:30px;}
+        h2{font-size:20px;}
+        /* Fix scrollbar in Chrome */
+        .syntaxhighlighter { overflow-y: hidden !important; border:1px solid #CCC;}
+    </style>
+</head>
+<body>
+    <br>
+    <div class="container">
+        <div class="span-24">
+            <h1 style="border-bottom: 1px solid #000">Roving Autonomous Robot (Pololu 3pi Robot)</h1>
+        </div>
+        <div class="span-5">
+            <br>
+            <ul id="navigation" style="list-style:none;padding-left:0px;margin:0px;">
+                <li><a href="p1.html">Part 1: Move forward</a></li>
+                <li><a href="p2.html">Part 2: 90 Degree turn</a></li>
+                <li><a href="p3.html">Part 3: Print LCD message</a></li>
+                <li><a href="p4.html">Part 4: Make a sound</a></li>
+                <li><a href="p5.html">Part 5: Use proximity sensors</a></li>
+                <li><a href="p6.html">Part 6: Create and use a library</a></li>
+                <li>&nbsp;</li>
+                <li>3pi RAR completed project</li>
+                
+            </ul>
+        </div>
+        <div class="span-19 last">
+            
+<br>
+<div style="width:640px; margin:0 auto;">
+
+    <a href="https://docs.google.com/open?id=0B2IHKyINujGIWjBiLW1OYmhvb2s"
+       target="_blank">3pi From 321 through Steve's door 2012-5-2 (Public file link)</a>
+    <object width="640" height="385">
+        <param name="movie" value="https://video.google.com/get_player?docid=0B2IHKyINujGIWjBiLW1OYmhvb2s&ps=docs&partnerid=30"></param>
+        <param name="allowFullScreen" value="true"></param><param name="allowScriptAccess" value="always"></param>
+        <embed src="https://video.google.com/get_player?docid=0B2IHKyINujGIWjBiLW1OYmhvb2s&ps=docs&partnerid=30"
+               type="application/x-shockwave-flash" allowfullscreen="true" allowScriptAccess="always" width="640" height="385"></embed>
+    </object>
+    
+</div>
+
+<br>
+<h3>3pi.c</h3>
+<pre class="brush: c; toolbar: false; highlight: [126,133,135,137,140,143,144,145,148,151,152,153]">/* 
+ *   Roving Autonomous Robot (ELET 3232)
+ *
+ *   Completed Project 
+ *
+ *       Matthew Campbell &lt;mcampb51@uncc.edu&gt; 2012-05-2
+ *	
+ *       Description:
+ * 
+ *       This is the final code that I used to get the robot to go from
+ *       Smith 321 down the hallway and into our intructor Steve Kuyath&#39;s
+ *       door (Smith 336). As seen in the following link:
+ *
+ *       https://docs.google.com/open?id=0B2IHKyINujGIWjBiLW1OYmhvb2s
+ *
+ *       See the code comments below for more details.
+ * 
+ */
+
+#include &lt;pololu/3pi.h&gt;
+// Use double-quotes (&#34;&#34;) instead of angle-brackets (&lt;&gt;)
+// to search the local path for the files.
+#include &#34;rar_cap.h&#34;
+// The configuration file with global constants in it
+#include &#34;config.h&#34;
+
+/*
+    This include file allows data to be stored in program space.  The
+    ATmegaxx8 has 16x more program space than RAM, so large
+    pieces of static data should be stored in program space.
+ */
+#include &lt;avr/pgmspace.h&gt;
+// Store a sound in program space.
+const char start_sound[] PROGMEM = &#34;reg4&#34;;
+
+/*
+    Get a percentage value for the battery life level.
+    100% is 5500mV or more and 0% is 3500mV or less.
+ */
+int rar_battery_percent() {
+    int battery_mv = read_battery_millivolts();
+    // To get the battery life as a percent we do:
+    // (current_mv - min_mv / mv_range(max-min)) * 100 
+    battery_mv = 100 * (battery_mv - 3500) / (5500 - 3500);
+    // This prevents a negative percent from being returned.
+    if (battery_mv &lt; 0) {
+        battery_mv = 0;
+    }
+    return battery_mv;
+}
+
+/*
+    Before starting the main loop display
+    the battery life and instructions to start.
+ */
+void rar_initialize() {
+    // Display battery voltage and wait for button B to be pressed.
+    while (!button_is_pressed(BUTTON_B)) {
+        // Print the battery life to the screen.
+        if (get_ms() % MS_DISPLAY_INTERVAL == 0) {
+            clear();
+            lcd_goto_xy(2, 0);
+            print_long(rar_battery_percent());
+            // Move the cursor to the second line of the LCD	.	
+            lcd_goto_xy(0, 1);
+            // Display instructions to start.
+            print(&#34;Press B&#34;);
+        }
+    }
+    // Wait for button B to be released.
+    wait_for_button_release(BUTTON_B);
+    // Play a sound
+    play_from_program_space(start_sound);
+    // Wait for two seconds to have time to clear out of the way of the robot.
+    delay_ms(2000);
+    // Print instructions to restart the program to the LCD.
+    clear();
+    print(&#34;Press&#34;);
+    lcd_goto_xy(0, 1);
+    print(&#34;Reset&#34;);
+}
+
+/*
+    The entry point for execution of the program.
+ */
+int main() {
+    // Set PC5 as an analog input with internal pull-up disabled.
+    DDRC &amp;= ~(1 &lt;&lt; PORTC5);
+    PORTC &amp;= ~(1 &lt;&lt; PORTC5);
+
+    // These are the variables used in the main loop.
+    int left_side_distance;
+    int right_side_distance;
+    int distance_difference;
+    int start_time;
+
+    // Display the battery life and instructions to start.
+    rar_initialize();
+    start_time = get_ms();
+    // analog_read() returns a value between 0 and 650,
+    // 650 being close proximity and 0 far.
+    left_side_distance = rar_cap(65 - analog_read(7) / 10, MAX_DISTANCE);
+    right_side_distance = rar_cap(65 - analog_read(5) / 10, MAX_DISTANCE);
+
+    // Start the main execution loop.
+    while (1) {
+        // Print to the screen twice per second.
+        if (get_ms() % MS_DISPLAY_INTERVAL == 0) {
+            // Print the proximity of from each IR sensor
+            clear();
+            lcd_goto_xy(0, 0);
+            print(&#34;L&#34;);
+            lcd_goto_xy(1, 0);
+            print_long(left_side_distance);
+            lcd_goto_xy(0, 1);
+            print(&#34;R&#34;);
+            lcd_goto_xy(1, 1);
+            print_long(right_side_distance);
+            // Print the number of seconds that have
+            // elapsed since the robot started to move
+            lcd_goto_xy(4, 0);
+            print_long((get_ms() - start_time) / 1000);
+        }
+        // The plus two was added to ensure the robot always turned left
+        // right after the cubbies where there is a T-shaped fork.
+        left_side_distance = rar_cap(65 - analog_read(7) / 10, MAX_DISTANCE) + 2;
+        right_side_distance = rar_cap(65 - analog_read(5) / 10, MAX_DISTANCE);
+        // If the robot is about to have a head on collision start a right turn.
+        // If it is time to follow the left wall (go in a door) do so.
+        // Otherwise, try to stay in the middle of the trial.
+        // Note: some additional logic was added in to behave differently to cope with
+        // the particular hallway the robot had to go down and door it had to go in.
+        if (left_side_distance + right_side_distance &lt; HEAD_ON_COLLISION_DISTANCE) {
+            set_motors(BASE_SPEED, -(BASE_SPEED));
+        } else if (get_ms() - start_time &gt;= MS_FOLLOW_LEFT_WALL_AT) {
+            // Totally stop moving soon after going through steve&#39;s door
+            if (get_ms() - start_time &gt;= MS_FOLLOW_LEFT_WALL_AT + 5000) {
+                set_motors(0, 0);
+                // Create a bias to stay closer to the left side
+            } else {
+                distance_difference = (left_side_distance + BIAS_LEFT_SIDE_DISTANCE) - right_side_distance;
+                // This was added in to make a real clean turn through an open door
+                if (left_side_distance &gt; 55) {
+                    distance_difference = 8;
+                }
+                set_motors(BASE_SPEED - distance_difference, BASE_SPEED + distance_difference);
+            }
+        } else {
+            // This was added in to avoid getting clipped by the right side
+            // wall where the hallway gets very narrow again across from the stairs
+            if (get_ms() - start_time &gt;= 42000 &amp;&amp; get_ms() - start_time &lt;= 52000) {
+                left_side_distance += 3;
+            }
+            distance_difference = left_side_distance - right_side_distance;
+            set_motors(BASE_SPEED - distance_difference, BASE_SPEED + distance_difference);
+        }
+    }
+    // The main while loop is never left once started. This part of the
+    // program is never reached.
+    return 0;
+}
+</pre>
+<br>
+<h3>config.h</h3>
+<pre class="brush: c; toolbar: false;">
+// Refresh the LCD twice per second.
+const int MS_DISPLAY_INTERVAL = 500;
+
+// Limit the max distance of the sensor readings to 55 from 65.
+// This should reduce the effects of open doors or a wall on one side.
+// This only seemed to help when I ran it down the narrower hallway path
+// which had many offices on it and was later not allowed for this reason.
+const char MAX_DISTANCE = 70;
+
+// Follow the left wall after 85 seconds. This was just before reaching
+// Steve&#39;s door.
+const long MS_FOLLOW_LEFT_WALL_AT = 85000;
+
+// Bias added to the left wall distance when following the left wall.
+const char BIAS_LEFT_SIDE_DISTANCE = 5;
+
+// The standard cruzing speed
+// I found that this was about the highest I could go and still make turns.
+// Any higher and the speed adjustments for turning had too little of an impact. 
+const int BASE_SPEED = 230;
+
+// The distance at which to act to avoid a collision.
+// Both sensors are summed to compare to this value.
+const int HEAD_ON_COLLISION_DISTANCE = 80;
+</pre>
+<br>
+<h3>rar_cap.h</h3>
+<pre class="brush: c; toolbar: false;">// This is the rar_cap() prototype.
+int rar_cap(int value, int limit);
+</pre>
+<br>
+<h3>rar_cap.c</h3>
+<pre class="brush: c; toolbar: false;">/*
+    Limit the the maximium a passed value can be.
+    If the value is greater than the limit,
+    return the limit, otherwise, return the value.
+ */
+int rar_cap(int value, int limit) {
+    if (value &gt; limit) {
+        return limit;
+    } else {
+        return value;
+    }
+}
+</pre>
+
+
+<br><br>
+
+        </div>
+    </div>
+    <script src="../static/syntaxhighlighter_3.0.83/scripts/shCore.js" type="text/javascript"></script>
+    <script src="../static/syntaxhighlighter_3.0.83/scripts/shAutoloader.js" type="text/javascript"></script>
+    <script src="../static/syntaxhighlighter_3.0.83/scripts/shBrushCpp.js" type="text/javascript"></script>
+    <script type='text/javascript'>
+        SyntaxHighlighter.all();
+    </script>
+</body>
+</html>
