@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<head>
+    <title>Part 3: Print LCD message - Matthew Campbell</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <link rel="stylesheet" href="../static/blueprint-css/screen.css" type="text/css" media="screen, projection">
+    <link rel="stylesheet" href="../static/blueprint-css/print.css" type="text/css" media="print">
+    <!--[if lt IE 8]>
+      <link rel="stylesheet" href="../static/blueprint-css/ie.css" type="text/css" media="screen, projection">
+    <![endif]-->
+    <link href="../static/syntaxhighlighter_3.0.83/styles/shCore.css" rel="stylesheet" type="text/css">
+    <link href="../static/syntaxhighlighter_3.0.83/styles/shThemeDefault.css" rel="stylesheet" type="text/css">
+    <style>
+        body, div, span, object, iframe, h1, h2, h3, h4, h5, h6, p, blockquote, pre, a, abbr, acronym, address, code, del, dfn, em, img, q, dl, dt, dd, ol, ul, li, fieldset, form, label, legend, table, caption, tbody, tfoot, thead, tr, th, td, article, aside, dialog, figure, footer, header, hgroup, nav, section{font-size:12px;font-family:Verdana, "Helvetica Neue", Arial, Helvetica, sans-serif;}
+        body{line-height:20px;}
+        h1{font-size:30px;}
+        h2{font-size:20px;}
+        /* Fix scrollbar in Chrome */
+        .syntaxhighlighter { overflow-y: hidden !important; border:1px solid #CCC;}
+    </style>
+</head>
+<body>
+    <br>
+    <div class="container">
+        <div class="span-24">
+            <h1 style="border-bottom: 1px solid #000">Roving Autonomous Robot (Pololu 3pi Robot)</h1>
+        </div>
+        <div class="span-5">
+            <br>
+            <ul id="navigation" style="list-style:none;padding-left:0px;margin:0px;">
+                <li><a href="p1.html">Part 1: Move forward</a></li>
+                <li><a href="p2.html">Part 2: 90 Degree turn</a></li>
+                <li>Part 3: Print LCD message</li>
+                <li><a href="p4.html">Part 4: Make a sound</a></li>
+                <li><a href="p5.html">Part 5: Use proximity sensors</a></li>
+                <li><a href="p6.html">Part 6: Create and use a library</a></li>
+                <li>&nbsp;</li>
+                <li><a href="3pi-rar-completed-project.html">3pi RAR completed project</a></li>
+                
+            </ul>
+        </div>
+        <div class="span-19 last">
+            
+<br>
+<pre class="brush: c; toolbar: false; highlight: [77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 100, 101, 102, 103];">/* 
+ *   Roving Autonomous Robot (ELET 3232)
+ * 
+ *   Part 3: Print a message to the LCD screen
+ *
+ *       Matthew Campbell &lt;mcampb51@uncc.edu&gt; 2012-04-07
+ *	
+ *	
+ *       Description:
+ *
+ *       The current battery life level will be printed
+ *       to the LCD screen so it is known when the batteries are
+ *       full or when they are getting low. 100% is 5500mV or more
+ *       and 0% is 3500mV or less.
+ *
+ *       The robot will also move in a square, now when button B is
+ *       pressed and then released, similar to as in Part 2. The 
+ *       functions have been made more versatile and moving backwards,
+ *       which is never needed since the robot can rotate in place,
+ *       is removed.
+ *
+ */
+
+#include &lt;pololu/3pi.h&gt;
+
+const int MAX_SPEED = 80;
+const int MIN_SPEED = 20;
+
+/*
+    Turn 90 degrees according to the parameter direction which can be:
+                1. &#39;L&#39; Left
+                2. &#39;R&#39; Right
+ */
+void rar_turn_90(char direction) {
+    switch (direction) {
+        case &#39;L&#39;:
+            // Turn 90 degrees left
+            set_motors(-20, 20);
+            delay_ms(1150);
+            break;
+        case &#39;R&#39;:
+            // Turn 90 degrees right
+            set_motors(20, -20);
+            delay_ms(1150);
+            break;
+    }
+}
+
+/*
+   Go from one speed to another, step should always be a positive number
+   the speeds have a range from -255 to 255, 100% duty cycle in reverse
+   to 100% duty cycle forwards
+ */
+void rar_change_speed(int from, int to, int step, int _delay_ms) {
+    if (from &gt; to) {
+        while (from &gt; to) {
+            from = from - step;
+            if (from &lt; to) {
+                from = to;
+            }
+            set_motors(from, from);
+            delay_ms(_delay_ms);
+        }
+    } else {
+        while (from &lt; to) {
+            from = from + step;
+            if (from &gt; to) {
+                from = to;
+            }
+            set_motors(from, from);
+            delay_ms(_delay_ms);
+        }
+    }
+
+}
+
+/*
+        Get a percentage value for the battery life level.
+        100% is 5500mV or more and 0% is 3500mV or less.
+ */
+int rar_battery_percent() {
+    int battery_mv = read_battery_millivolts();
+    // (current_mv - min_mv / mv_range(max-min)) * 100 to get percent in an integer
+    battery_mv = 100 * (battery_mv - 3500) / (5500 - 3500);
+    // Don&#39;t allow a negative percent to be returned
+    if (battery_mv &lt; 0) {
+        battery_mv = 0;
+    }
+    return battery_mv;
+
+
+}
+
+/*
+    The entry point for execution of the program
+ */
+int main() {
+    // Display battery voltage and wait for button B to be pressed
+    while (!button_is_pressed(BUTTON_B)) {
+        // Print the battery life to the screen
+        clear();
+        lcd_goto_xy(0, 0);
+        print_long(rar_battery_percent());
+        // Move the cursor to the second line of the LCD		
+        lcd_goto_xy(0, 1);
+        // Display instructions to start
+        print(&#34;Press B&#34;);
+        // Prevent the LCD from flickering
+        delay_ms(100);
+    }
+    // Wait for button B to be released
+    wait_for_button_release(BUTTON_B);
+    // Wait for two seconds to have time to clear out of the way of the robot
+    delay_ms(2000);
+    // Start the main execution loop
+    while (1) {
+        // Move forward, slow-down to a stop, turn right
+        set_motors(80, 80);
+        rar_change_speed(80, 0, 10, 100);
+        rar_turn_90(&#39;R&#39;);
+    }
+    return 0;
+}
+</pre>
+<br>
+<div style="width:640px; margin:0 auto;">
+    <iframe width="640" height="360"
+            src="http://www.youtube.com/embed/vQ28a8ay9g0?rel=0"
+            frameborder="0" allowfullscreen>
+    </iframe>
+</div>
+
+<br><br>
+
+        </div>
+    </div>
+    <script src="../static/syntaxhighlighter_3.0.83/scripts/shCore.js" type="text/javascript"></script>
+    <script src="../static/syntaxhighlighter_3.0.83/scripts/shAutoloader.js" type="text/javascript"></script>
+    <script src="../static/syntaxhighlighter_3.0.83/scripts/shBrushCpp.js" type="text/javascript"></script>
+    <script type='text/javascript'>
+        SyntaxHighlighter.all();
+    </script>
+</body>
+</html>
